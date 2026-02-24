@@ -8,16 +8,16 @@ from src.publisher.config import PublisherConfig
 class Publisher:
     def __init__(self, config: PublisherConfig):
         """
-        Inicjalizuje wydawcę na podstawie dostarczonej klasy konfiguracji.
+        Initializes the publisher based on the provided configuration class.
         """
         self.config = config
-        # Tworzymy logger nazwany imieniem konkretnego wydawcy
+        # Create a logger named after the specific publisher
         self.logger = logging.getLogger(f"Publisher-{config.name}")
 
     def generate_single_request(self) -> BidRequest:
         """
-        Tworzy niezmienny (frozen) obiekt BidRequest.
-        Wszystkie parametry pochodzą z konfiguracji lub generatorów.
+        Creates an immutable (frozen) BidRequest object.
+        All parameters come from the configuration or generators.
         """
         return BidRequest(
             id=str(uuid.uuid4()),
@@ -27,24 +27,20 @@ class Publisher:
         )
 
     def run_simulation(self, interval: float = 1.0):
-        """
-        Główna pętla symulująca działanie serwera wydawcy.
-        W przyszłości tutaj dodamy metodę wysyłającą request przez HTTP.
-        """
-        self.logger.info(f"🚀 Start symulacji ruchu dla {self.config.domain} (Kat: {self.config.category})")
+        self.logger.info(f"🚀 Starting traffic simulation for {self.config.domain} (Category: {self.config.category})")
 
         try:
             while True:
-                # 1. Generujemy dane aukcji
+                # 1. Generate auction data
                 request = self.generate_single_request()
 
-                # 2. Logujemy zdarzenie (później: wysyłka do SSP/DSP)
+                # 2. Log event (later: send to SSP/DSP)
                 self.logger.info(
                     f"GENERATE | ID: {request.id[:8]}... | Floor: {request.bid_floor:>4}$ | Domain: {request.domain}"
                 )
 
-                # 3. Odczekujemy zadany czas
+                # 3. Wait for the specified time
                 time.sleep(interval)
 
         except KeyboardInterrupt:
-            self.logger.info(f"🛑 Zatrzymano wydawcę: {self.config.name}")
+            self.logger.info(f"🛑 Stopped publisher: {self.config.name}")

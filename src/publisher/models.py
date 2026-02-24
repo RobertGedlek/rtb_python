@@ -9,7 +9,7 @@ class BidRequest:
 
     def __post_init__(self):
         if self.bid_floor < 0:
-            raise ValueError("Cena nie może być ujemna!")
+            raise ValueError("Price cannot be negative!")
 
     def to_dict(self):
         return asdict(self)
