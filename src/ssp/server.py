@@ -1,9 +1,7 @@
-import logging
 from fastapi import FastAPI, Request
+from src.logging_config import get_logger
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [SSP] %(message)s')
-logger = logging.getLogger("SSP-Server")
+logger = get_logger("SSP-Server")
 
 app = FastAPI(title="RTB SSP Receiver")
 

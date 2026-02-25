@@ -1,12 +1,10 @@
-import logging
 from concurrent.futures import ThreadPoolExecutor
+from src.logging_config import setup_logging
 from src.publisher.config import PublisherConfig
 from src.publisher.engine import Publisher
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
-)
+# Initialize central logging configuration
+setup_logging()
 
 def start_publishers():
     # Define multiple publisher configurations

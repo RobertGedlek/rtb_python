@@ -1,8 +1,8 @@
 import time
 import random
 import uuid
-import logging
 import requests
+from src.logging_config import get_logger
 from src.publisher.models import BidRequest
 from src.publisher.config import PublisherConfig
 
@@ -10,7 +10,7 @@ class Publisher:
     def __init__(self, config: PublisherConfig, target_url: str = "http://127.0.0.1:8000/bid/request"):
         self.config = config
         self.target_url = target_url
-        self.logger = logging.getLogger(f"Publisher-{config.name}")
+        self.logger = get_logger(f"Publisher-{config.name}")
 
     def generate_single_request(self) -> BidRequest:
         """Creates a random, valid BidRequest object."""
