@@ -7,9 +7,8 @@ from src.publisher.models import BidRequest
 from src.publisher.config import PublisherConfig
 
 class Publisher:
-    def __init__(self, config: PublisherConfig, target_url: str = "http://127.0.0.1:8000/bid/request"):
+    def __init__(self, config: PublisherConfig):
         self.config = config
-        self.target_url = target_url
         self.logger = get_logger(f"Publisher-{config.name}")
 
     def generate_single_request(self) -> BidRequest:
@@ -23,7 +22,7 @@ class Publisher:
 
     def run_simulation(self, interval: float = 1.0):
         """Loop sending requests to SSP."""
-        self.logger.info(f"🚀 Starting traffic: {self.config.domain} -> {self.target_url}")
+        self.logger.info(f"🚀 Starting traffic: {self.config.domain} -> {self.config.target_url}")
 
         try:
             while True:
@@ -31,7 +30,7 @@ class Publisher:
 
                 try:
                     response = requests.post(
-                        self.target_url,
+                        self.config.target_url,
                         json=request_obj.to_dict(),
                         timeout=0.5
                     )

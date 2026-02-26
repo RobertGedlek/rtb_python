@@ -7,6 +7,7 @@ class PublisherConfig:
     category: str
     min_floor: float
     max_floor: float
+    target_url: str = "http://127.0.0.1:8000/bid/request"
 
     def __post_init__(self):
         if not self.name:
