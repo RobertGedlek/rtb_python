@@ -1,12 +1,12 @@
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 
 from src.logging_config import get_logger
 from src.ssp.config import get_config
+from src.ssp.exception_handlers import validation_exception_handler
 from src.ssp.models import BidRequestIn
 
 env = os.getenv("RTB_ENV", "dev")
@@ -25,29 +25,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="RTB SSP Receiver", version="0.1.0", lifespan=lifespan)
-
-
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Custom handler for request validation errors — returns clear RTB-style error messages."""
-    errors = []
-    for error in exc.errors():
-        field = " -> ".join(str(loc) for loc in error["loc"] if loc != "body")
-        errors.append({
-            "field": field,
-            "message": error["msg"],
-            "type": error["type"],
-        })
-
-    logger.warning(f"🚫 Invalid BidRequest received: {errors}")
-    return JSONResponse(
-        status_code=422,
-        content={
-            "status": "rejected",
-            "reason": "validation_error",
-            "errors": errors,
-        },
-    )
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
 
 @app.post("/bid/request")
