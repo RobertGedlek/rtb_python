@@ -3,6 +3,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 import httpx
+import requests
 
 from src.logging_config import setup_logging, get_logger
 from src.publisher.config import PublisherConfig
@@ -46,6 +47,34 @@ def wait_for_ssp(base_url: str, timeout: float = 10.0, interval: float = 0.3) ->
     return False
 
 
+def run_simulation(publisher: Publisher, interval: float = 1.0):
+    """Loop sending requests to SSP."""
+    publisher.logger.info(f"🚀 Starting traffic: {publisher.config.domain} -> {publisher.config.target_url}")
+
+    try:
+        while True:
+            request_obj = publisher.generate_single_request()
+
+            try:
+                response = requests.post(
+                    publisher.config.target_url,
+                    json=request_obj.to_dict(),
+                    timeout=0.5
+                )
+
+                if response.status_code in [200, 204]:
+                    publisher.logger.info(f"✅ OK | ID: {request_obj.id[:8]}... | Floor: {request_obj.bid_floor}$")
+                else:
+                    publisher.logger.warning(f"⚠️ Server returned error: {response.status_code}")
+
+            except requests.exceptions.RequestException as e:
+                publisher.logger.error(f"❌ No connection to SSP: {e}")
+
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        publisher.logger.info(f"🛑 Stopped: {publisher.config.name}")
+
+
 def start_publishers():
     """Start all publishers in parallel threads."""
     configs = [
@@ -57,7 +86,7 @@ def start_publishers():
     with ThreadPoolExecutor(max_workers=len(configs)) as executor:
         for cfg in configs:
             pub = Publisher(cfg)
-            executor.submit(pub.run_simulation, 2.0)
+            executor.submit(run_simulation, pub, 2.0)
 
 
 if __name__ == "__main__":
