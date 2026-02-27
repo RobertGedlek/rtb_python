@@ -1,16 +1,13 @@
 import time
 import threading
-from concurrent.futures import ThreadPoolExecutor
 
 import httpx
-import requests
 
 from src.logging_config import setup_logging, get_logger
-from src.publisher.config import PublisherConfig
-from src.publisher.engine import Publisher
-from src.ssp.config import get_config
+from src.ssp.config import get_config as get_ssp_config
+from src.advertiser.config import get_config as get_advertiser_config
+from src.publisher.config import get_config as get_publisher_config
 
-# Initialize central logging configuration
 setup_logging()
 logger = get_logger("Simulation")
 
@@ -20,8 +17,7 @@ def start_ssp_server():
     import uvicorn
     from src.ssp.server import app
 
-    config = get_config()
-
+    config = get_ssp_config()
     uvicorn.run(
         app,
         host=config.server.host,
@@ -30,78 +26,102 @@ def start_ssp_server():
     )
 
 
-def wait_for_ssp(base_url: str, timeout: float = 10.0, interval: float = 0.3) -> bool:
-    """Poll SSP /health endpoint until it responds or timeout is reached."""
+def start_advertiser_server():
+    """Start the Advertiser server in a background thread."""
+    import uvicorn
+    from src.advertiser.server import app
+
+    config = get_advertiser_config()
+    uvicorn.run(
+        app,
+        host=config.server.host,
+        port=config.server.port,
+        log_level=config.server.log_level,
+    )
+
+
+def start_publisher_server():
+    """Start the Publisher server in a background thread."""
+    import uvicorn
+    from src.publisher.server import app
+
+    config = get_publisher_config()
+    uvicorn.run(
+        app,
+        host=config.server.host,
+        port=config.server.port,
+        log_level=config.server.log_level,
+    )
+
+
+def wait_for_server(name: str, base_url: str, timeout: float = 10.0, interval: float = 0.3) -> bool:
+    """Poll server /health endpoint until it responds or timeout is reached."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
             resp = httpx.get(f"{base_url}/health", timeout=1.0)
             if resp.status_code == 200:
-                logger.info(f"✅ SSP server ready: {resp.json()}")
+                logger.info(f"✅ {name} ready: {resp.json()}")
                 return True
         except httpx.ConnectError:
             pass
         time.sleep(interval)
 
-    logger.error(f"❌ SSP server failed to start within {timeout}s")
+    logger.error(f"❌ {name} failed to start within {timeout}s")
     return False
 
 
-def run_simulation(publisher: Publisher, interval: float = 1.0):
-    """Loop sending requests to SSP."""
-    publisher.logger.info(f"🚀 Starting traffic: {publisher.config.domain} -> {publisher.config.target_url}")
-
+def start_publisher_traffic(pub_url: str) -> bool:
+    """Start generating bid requests on the publisher server."""
     try:
-        while True:
-            request_obj = publisher.generate_single_request()
-
-            try:
-                response = requests.post(
-                    publisher.config.target_url,
-                    json=request_obj.to_dict(),
-                    timeout=0.5
-                )
-
-                if response.status_code in [200, 204]:
-                    publisher.logger.info(f"✅ OK | ID: {request_obj.id[:8]}... | Floor: {request_obj.bid_floor}$")
-                else:
-                    publisher.logger.warning(f"⚠️ Server returned error: {response.status_code}")
-
-            except requests.exceptions.RequestException as e:
-                publisher.logger.error(f"❌ No connection to SSP: {e}")
-
-            time.sleep(interval)
-    except KeyboardInterrupt:
-        publisher.logger.info(f"🛑 Stopped: {publisher.config.name}")
-
-
-def start_publishers():
-    """Start all publishers in parallel threads."""
-    configs = [
-        PublisherConfig("TechBlog", "tech-world.com", "technology", 1.5, 4.0),
-        PublisherConfig("SportPortal", "fast-sports.pl", "sports", 0.5, 1.2),
-        PublisherConfig("NewsSite", "daily-news.com", "news", 0.1, 0.8),
-    ]
-
-    with ThreadPoolExecutor(max_workers=len(configs)) as executor:
-        for cfg in configs:
-            pub = Publisher(cfg)
-            executor.submit(run_simulation, pub, 2.0)
+        resp = httpx.post(f"{pub_url}/start", timeout=5.0)
+        if resp.status_code == 200:
+            logger.info(f"▶️ Publisher started generating traffic: {resp.json()}")
+            return True
+    except httpx.RequestError as e:
+        logger.error(f"❌ Failed to start publisher traffic: {e}")
+    return False
 
 
 if __name__ == "__main__":
-    config = get_config()
-    base_url = f"http://{config.server.host}:{config.server.port}"
+    ssp_config = get_ssp_config()
+    adv_config = get_advertiser_config()
+    pub_config = get_publisher_config()
 
-    # Start SSP server in a daemon thread (stops when main process exits)
-    server_thread = threading.Thread(target=start_ssp_server, daemon=True)
-    server_thread.start()
+    ssp_url = f"http://{ssp_config.server.host}:{ssp_config.server.port}"
+    adv_url = f"http://{adv_config.server.host}:{adv_config.server.port}"
+    pub_url = f"http://{pub_config.server.host}:{pub_config.server.port}"
 
-    # Poll /health
-    logger.info("⏳ Waiting for SSP server to become ready...")
-    if not wait_for_ssp(base_url):
-        logger.error("Aborting simulation — SSP server not available")
+    # Start all servers in daemon threads
+    threading.Thread(target=start_advertiser_server, daemon=True).start()
+    threading.Thread(target=start_ssp_server, daemon=True).start()
+    threading.Thread(target=start_publisher_server, daemon=True).start()
+
+    # Wait for all servers to be ready
+    logger.info("⏳ Waiting for Advertiser server...")
+    if not wait_for_server("Advertiser", adv_url):
+        logger.error("Aborting — Advertiser server not available")
         raise SystemExit(1)
 
-    logger.info("🚀 Starting publishers...")
-    start_publishers()
+    logger.info("⏳ Waiting for SSP server...")
+    if not wait_for_server("SSP", ssp_url):
+        logger.error("Aborting — SSP server not available")
+        raise SystemExit(1)
+
+    logger.info("⏳ Waiting for Publisher server...")
+    if not wait_for_server("Publisher", pub_url):
+        logger.error("Aborting — Publisher server not available")
+        raise SystemExit(1)
+
+    # Start generating bid requests
+    logger.info("🚀 Starting simulation...")
+    if not start_publisher_traffic(pub_url):
+        logger.error("Aborting — could not start publisher traffic")
+        raise SystemExit(1)
+
+    # Keep main thread alive
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        logger.info("🛑 Simulation stopped")

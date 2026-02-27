@@ -6,12 +6,11 @@ import pytest
 from src.publisher.config import PublisherConfig
 
 
-# ── Shared fixtures ──────────────────────────────────────────────
-
 @pytest.fixture
 def valid_publisher_config() -> PublisherConfig:
     """A reusable, valid PublisherConfig for tests that need one."""
     return PublisherConfig(
+        publisher_id="pub-test",
         name="TestPub",
         domain="test-site.com",
         category="technology",

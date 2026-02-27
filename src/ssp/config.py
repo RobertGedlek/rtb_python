@@ -18,6 +18,7 @@ class SSPConfig:
     max_bid_response_time_ms: int = 100  # RTB timeout for bid response
     currency: str = "USD"
     seat_id: str = "ssp-001"
+    advertiser_urls: tuple[str, ...] = field(default_factory=lambda: ("http://127.0.0.1:8001/bid",))
 
 
 # --- Environment presets ---

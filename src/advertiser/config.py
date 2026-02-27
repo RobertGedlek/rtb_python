@@ -3,59 +3,55 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class ServerConfig:
-    """Configuration for a single Publisher server instance."""
+    """Configuration for a single Advertiser server instance."""
     host: str = "127.0.0.1"
-    port: int = 8002
+    port: int = 8001
     workers: int = 1
     log_level: str = "info"
     reload: bool = False
 
 
 @dataclass(frozen=True)
-class PublisherConfig:
-    """Main Publisher configuration."""
+class AdvertiserConfig:
+    """Main Advertiser (DSP) configuration."""
     server: ServerConfig = field(default_factory=ServerConfig)
-    publisher_id: str = "pub-001"
-    name: str = "Default Publisher"
-    domain: str = "example.com"
-    category: str = "news"
-    min_floor: float = 0.5
-    max_floor: float = 2.0
-    ssp_url: str = "http://127.0.0.1:8000/bid/request"
-    request_interval_ms: int = 1000
+    advertiser_id: str = "adv-001"
+    response_delay_ms: int = 50
+    min_bid: float = 0.5
+    max_bid: float = 5.0
 
 
-DEVELOPMENT = PublisherConfig(
+DEVELOPMENT = AdvertiserConfig(
     server=ServerConfig(
         host="127.0.0.1",
-        port=8002,
+        port=8001,
         workers=1,
         log_level="debug",
         reload=True,
     ),
-    request_interval_ms=2000,
+    response_delay_ms=30,
 )
 
-STAGING = PublisherConfig(
+STAGING = AdvertiserConfig(
     server=ServerConfig(
         host="0.0.0.0",
-        port=8002,
+        port=8001,
         workers=2,
         log_level="info",
         reload=False,
     ),
-    request_interval_ms=1000,
+    response_delay_ms=50,
 )
 
-PRODUCTION = PublisherConfig(
+PRODUCTION = AdvertiserConfig(
     server=ServerConfig(
         host="0.0.0.0",
-        port=8002,
+        port=8001,
         workers=3,
         log_level="warning",
         reload=False,
     ),
-    request_interval_ms=500,
+    response_delay_ms=50,
 )
 
 ENVIRONMENTS = {
@@ -65,8 +61,8 @@ ENVIRONMENTS = {
 }
 
 
-def get_config(env: str = "dev") -> PublisherConfig:
-    """Get Publisher config for a given environment."""
+def get_config(env: str = "dev") -> AdvertiserConfig:
+    """Get Advertiser config for a given environment."""
     if env not in ENVIRONMENTS:
         raise ValueError(f"Unknown environment: '{env}'. Available: {list(ENVIRONMENTS.keys())}")
     return ENVIRONMENTS[env]

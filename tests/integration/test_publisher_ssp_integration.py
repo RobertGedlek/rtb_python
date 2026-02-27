@@ -10,46 +10,50 @@ import uuid
 
 from httpx import AsyncClient
 
-from src.publisher.engine import Publisher
+from src.publisher.config import PublisherConfig
+from tests.integration.conftest import generate_bid_request
+
 
 class TestPublisherToSSPFlow:
     """Test the complete flow from Publisher generating requests to SSP receiving them."""
 
     async def test_publisher_request_accepted_by_ssp(
-        self, async_client: AsyncClient, publisher: Publisher
+        self, async_client: AsyncClient, publisher_config: PublisherConfig
     ):
         """Publisher-generated request should be accepted by SSP."""
-        bid_request = publisher.generate_single_request()
-        
+        bid_request = generate_bid_request(publisher_config)
+
         response = await async_client.post(
             "/bid/request",
             json=bid_request.to_dict()
         )
-        
+
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "received"
+        assert data["status"] in ["no_bid", "bid_won"]
         assert data["id"] == bid_request.id
 
     async def test_multiple_publisher_requests_all_accepted(
-        self, async_client: AsyncClient, publisher: Publisher
+        self, async_client: AsyncClient, publisher_config: PublisherConfig
     ):
         """Multiple consecutive requests from same publisher should all succeed."""
         for _ in range(5):
-            bid_request = publisher.generate_single_request()
+            bid_request = generate_bid_request(publisher_config)
             response = await async_client.post(
                 "/bid/request",
                 json=bid_request.to_dict()
             )
             assert response.status_code == 200
-            assert response.json()["status"] == "received"
+            assert response.json()["status"] in ["no_bid", "bid_won"]
 
     async def test_different_publishers_can_send_requests(
-        self, async_client: AsyncClient, publisher: Publisher, publisher_high_floor: Publisher
+        self, async_client: AsyncClient,
+        publisher_config: PublisherConfig,
+        publisher_config_high_floor: PublisherConfig
     ):
         """Different publisher configurations should all work."""
-        for pub in [publisher, publisher_high_floor]:
-            bid_request = pub.generate_single_request()
+        for config in [publisher_config, publisher_config_high_floor]:
+            bid_request = generate_bid_request(config)
             response = await async_client.post(
                 "/bid/request",
                 json=bid_request.to_dict()
@@ -57,13 +61,13 @@ class TestPublisherToSSPFlow:
             assert response.status_code == 200
 
     async def test_bid_floor_preserved_in_response_flow(
-        self, async_client: AsyncClient, publisher: Publisher
+        self, async_client: AsyncClient, publisher_config: PublisherConfig
     ):
         """Bid floor should be within publisher's configured range."""
-        bid_request = publisher.generate_single_request()
-        
-        assert publisher.config.min_floor <= bid_request.bid_floor <= publisher.config.max_floor
-        
+        bid_request = generate_bid_request(publisher_config)
+
+        assert publisher_config.min_floor <= bid_request.bid_floor <= publisher_config.max_floor
+
         response = await async_client.post(
             "/bid/request",
             json=bid_request.to_dict()
@@ -71,27 +75,27 @@ class TestPublisherToSSPFlow:
         assert response.status_code == 200
 
     async def test_category_normalized_by_ssp(
-        self, async_client: AsyncClient, publisher: Publisher
+        self, async_client: AsyncClient, publisher_config: PublisherConfig
     ):
         """SSP normalizes category to uppercase."""
-        bid_request = publisher.generate_single_request()
+        bid_request = generate_bid_request(publisher_config)
         payload = bid_request.to_dict()
-        payload["category"] = "technology"  # lowercase
-        
+        payload["category"] = "technology"
+
         response = await async_client.post("/bid/request", json=payload)
-        
+
         assert response.status_code == 200
 
     async def test_domain_normalized_by_ssp(
-        self, async_client: AsyncClient, publisher: Publisher
+        self, async_client: AsyncClient, publisher_config: PublisherConfig
     ):
         """SSP normalizes domain to lowercase."""
-        bid_request = publisher.generate_single_request()
+        bid_request = generate_bid_request(publisher_config)
         payload = bid_request.to_dict()
-        payload["domain"] = "TEST-SITE.COM"  # uppercase
-        
+        payload["domain"] = "TEST-SITE.COM"
+
         response = await async_client.post("/bid/request", json=payload)
-        
+
         assert response.status_code == 200
 
 
@@ -182,11 +186,11 @@ class TestSSPValidationIntegration:
             "category": "IAB1",
             "bid_floor": 0.0
         }
-        
+
         response = await async_client.post("/bid/request", json=payload)
-        
+
         assert response.status_code == 200
-        assert response.json()["status"] == "received"
+        assert response.json()["status"] in ["no_bid", "bid_won"]
 
     async def test_multiple_validation_errors_reported(self, async_client: AsyncClient):
         """SSP reports all validation errors at once."""
@@ -228,16 +232,16 @@ class TestRequestIdUniqueness:
     """Test that Publisher generates unique request IDs."""
 
     async def test_publisher_generates_unique_ids(
-        self, async_client: AsyncClient, publisher: Publisher
+        self, async_client: AsyncClient, publisher_config: PublisherConfig
     ):
         """Each generated request should have a unique ID."""
         ids = set()
-        
+
         for _ in range(100):
-            bid_request = publisher.generate_single_request()
+            bid_request = generate_bid_request(publisher_config)
             assert bid_request.id not in ids, "Duplicate ID generated"
             ids.add(bid_request.id)
-            
+
             response = await async_client.post(
                 "/bid/request",
                 json=bid_request.to_dict()
@@ -249,13 +253,13 @@ class TestEdgeCases:
     """Test edge cases in the Publisher-SSP integration."""
 
     async def test_very_high_bid_floor(
-        self, async_client: AsyncClient, publisher_high_floor: Publisher
+        self, async_client: AsyncClient, publisher_config_high_floor: PublisherConfig
     ):
         """High bid floor values should be accepted."""
-        bid_request = publisher_high_floor.generate_single_request()
-        
+        bid_request = generate_bid_request(publisher_config_high_floor)
+
         assert bid_request.bid_floor >= 50.0
-        
+
         response = await async_client.post(
             "/bid/request",
             json=bid_request.to_dict()
