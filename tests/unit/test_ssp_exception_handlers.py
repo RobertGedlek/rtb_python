@@ -2,13 +2,9 @@
 import json
 from unittest.mock import MagicMock
 
-import pytest
 from fastapi.exceptions import RequestValidationError
 
 from src.ssp.exception_handlers import validation_exception_handler
-
-pytestmark = [pytest.mark.asyncio]
-
 
 def _make_validation_error(errors: list[dict]) -> RequestValidationError:
     """Create a RequestValidationError with the given raw error list."""

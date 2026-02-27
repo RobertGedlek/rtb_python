@@ -13,6 +13,8 @@ markers = [
     "api: API tests (HTTP endpoints)",
 ]
 addopts = "-v --tb=short"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 # Run only unit tests by default:
 #   pytest -m unit
