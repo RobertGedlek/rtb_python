@@ -1,0 +1,13 @@
+[server]
+host = "0.0.0.0"
+port = 8002
+workers = 3
+log_level = "warning"
+reload = false
+
+[advertiser]
+advertiser_id = "adv-002"
+response_delay_ms = 50
+min_bid = 1.0
+max_bid = 8.0
+

@@ -4,17 +4,20 @@ import random
 import uuid
 from contextlib import asynccontextmanager
 
+from pathlib import Path
+
 from fastapi import FastAPI
 
 from src.logging_config import get_logger
-from src.advertiser.config import get_config
+from src.advertiser.config import get_config, _CONFIGS_DIR
 from src.advertiser.models import BidResponse
 from src.ssp.models import BidRequestIn
 
 env = os.getenv("RTB_ENV", "dev")
-config = get_config(env)
+config_path = Path(os.getenv("RTB_CONFIG_PATH", str(_CONFIGS_DIR / f"adv001_{env}.toml")))
+config = get_config(config_path)
 
-logger = get_logger("Advertiser")
+logger = get_logger(f"Advertiser[{config.advertiser_id}]")
 
 
 @asynccontextmanager
@@ -26,7 +29,7 @@ async def lifespan(_app: FastAPI):
     logger.info("🛑 Advertiser shutting down")
 
 
-app = FastAPI(title="RTB Advertiser (DSP)", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title=f"RTB Advertiser (DSP) [{config.advertiser_id}]", version="0.1.0", lifespan=lifespan)
 
 
 @app.post("/bid", response_model=BidResponse)

@@ -1,11 +1,14 @@
+import os
 import time
 import threading
+import multiprocessing
+from pathlib import Path
 
 import httpx
 
 from src.logging_config import setup_logging, get_logger
 from src.ssp.config import get_config as get_ssp_config
-from src.advertiser.config import get_config as get_advertiser_config, get_config_2 as get_advertiser_config_2
+from src.advertiser.config import get_config as get_advertiser_config, _CONFIGS_DIR
 from src.publisher.config import get_config as get_publisher_config
 
 setup_logging()
@@ -26,12 +29,14 @@ def start_ssp_server():
     )
 
 
-def start_advertiser_server():
-    """Start the Advertiser 1 server in a background thread."""
+def start_advertiser_server(config_path: Path):
+    """Start an Advertiser server in a subprocess with the given config file."""
+    import os
     import uvicorn
     from src.advertiser.server import app
 
-    config = get_advertiser_config()
+    os.environ["RTB_CONFIG_PATH"] = str(config_path)
+    config = get_advertiser_config(config_path)
     uvicorn.run(
         app,
         host=config.server.host,
@@ -39,19 +44,6 @@ def start_advertiser_server():
         log_level=config.server.log_level,
     )
 
-
-def start_advertiser_server_2():
-    """Start the Advertiser 2 server in a background thread."""
-    import uvicorn
-    from src.advertiser.server2 import app
-
-    config = get_advertiser_config_2()
-    uvicorn.run(
-        app,
-        host=config.server.host,
-        port=config.server.port,
-        log_level=config.server.log_level,
-    )
 
 
 def start_publisher_server():
@@ -98,9 +90,13 @@ def start_publisher_traffic(pub_url: str) -> bool:
 
 
 if __name__ == "__main__":
+    env = os.getenv("RTB_ENV", "dev")
+
     ssp_config = get_ssp_config()
-    adv_config = get_advertiser_config()
-    adv_config_2 = get_advertiser_config_2()
+    adv1_path = _CONFIGS_DIR / f"adv001_{env}.toml"
+    adv2_path = _CONFIGS_DIR / f"adv002_{env}.toml"
+    adv_config = get_advertiser_config(adv1_path)
+    adv_config_2 = get_advertiser_config(adv2_path)
     pub_config = get_publisher_config()
 
     ssp_url = f"http://{ssp_config.server.host}:{ssp_config.server.port}"
@@ -108,9 +104,9 @@ if __name__ == "__main__":
     adv_url_2 = f"http://{adv_config_2.server.host}:{adv_config_2.server.port}"
     pub_url = f"http://{pub_config.server.host}:{pub_config.server.port}"
 
-    # Start all servers in daemon threads
-    threading.Thread(target=start_advertiser_server, daemon=True).start()
-    threading.Thread(target=start_advertiser_server_2, daemon=True).start()
+    # Start all servers in daemon processes/threads
+    multiprocessing.Process(target=start_advertiser_server, args=(adv1_path,), daemon=True).start()
+    multiprocessing.Process(target=start_advertiser_server, args=(adv2_path,), daemon=True).start()
     threading.Thread(target=start_ssp_server, daemon=True).start()
     threading.Thread(target=start_publisher_server, daemon=True).start()
 
