@@ -5,7 +5,7 @@ import httpx
 
 from src.logging_config import setup_logging, get_logger
 from src.ssp.config import get_config as get_ssp_config
-from src.advertiser.config import get_config as get_advertiser_config
+from src.advertiser.config import get_config as get_advertiser_config, get_config_2 as get_advertiser_config_2
 from src.publisher.config import get_config as get_publisher_config
 
 setup_logging()
@@ -27,11 +27,25 @@ def start_ssp_server():
 
 
 def start_advertiser_server():
-    """Start the Advertiser server in a background thread."""
+    """Start the Advertiser 1 server in a background thread."""
     import uvicorn
     from src.advertiser.server import app
 
     config = get_advertiser_config()
+    uvicorn.run(
+        app,
+        host=config.server.host,
+        port=config.server.port,
+        log_level=config.server.log_level,
+    )
+
+
+def start_advertiser_server_2():
+    """Start the Advertiser 2 server in a background thread."""
+    import uvicorn
+    from src.advertiser.server2 import app
+
+    config = get_advertiser_config_2()
     uvicorn.run(
         app,
         host=config.server.host,
@@ -86,21 +100,29 @@ def start_publisher_traffic(pub_url: str) -> bool:
 if __name__ == "__main__":
     ssp_config = get_ssp_config()
     adv_config = get_advertiser_config()
+    adv_config_2 = get_advertiser_config_2()
     pub_config = get_publisher_config()
 
     ssp_url = f"http://{ssp_config.server.host}:{ssp_config.server.port}"
     adv_url = f"http://{adv_config.server.host}:{adv_config.server.port}"
+    adv_url_2 = f"http://{adv_config_2.server.host}:{adv_config_2.server.port}"
     pub_url = f"http://{pub_config.server.host}:{pub_config.server.port}"
 
     # Start all servers in daemon threads
     threading.Thread(target=start_advertiser_server, daemon=True).start()
+    threading.Thread(target=start_advertiser_server_2, daemon=True).start()
     threading.Thread(target=start_ssp_server, daemon=True).start()
     threading.Thread(target=start_publisher_server, daemon=True).start()
 
     # Wait for all servers to be ready
-    logger.info("⏳ Waiting for Advertiser server...")
-    if not wait_for_server("Advertiser", adv_url):
-        logger.error("Aborting — Advertiser server not available")
+    logger.info("⏳ Waiting for Advertiser 1 server...")
+    if not wait_for_server("Advertiser 1", adv_url):
+        logger.error("Aborting — Advertiser 1 server not available")
+        raise SystemExit(1)
+
+    logger.info("⏳ Waiting for Advertiser 2 server...")
+    if not wait_for_server("Advertiser 2", adv_url_2):
+        logger.error("Aborting — Advertiser 2 server not available")
         raise SystemExit(1)
 
     logger.info("⏳ Waiting for SSP server...")
